@@ -1,0 +1,25 @@
+//  $ protoc --go_out=./ --go_opt=paths=source_relative ./base/*.proto
+
+syntax = "proto3";
+
+option go_package = "github.com/iasthc/hsuan-fuzz/base";
+
+package base;
+
+import "google/protobuf/struct.proto";
+
+message Info {
+  repeated Node nodes = 1;
+}
+
+message Node {
+  uint32 group = 1;
+  string path = 2;
+  string method = 3;
+  repeated Request requests = 4;
+}
+
+message Request {
+  string type = 1;  // path, query, cookie, header, else (json)
+  google.protobuf.Struct value = 2;
+}

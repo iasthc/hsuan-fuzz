@@ -1,0 +1,388 @@
+// modified from https://github.com/danielgtaylor/apisprout
+package example
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/getkin/kin-openapi/openapi3"
+)
+
+var (
+	// ErrNoExample is sent when no example was found for an operation.
+	ErrNoExample = errors.New("no example found")
+
+	// ErrRecursive is when a schema is impossible to represent because it infinitely recurses.
+	ErrRecursive = errors.New("recursive schema")
+
+	// ErrCannotMarshal is set when an example cannot be marshalled.
+	ErrCannotMarshal = errors.New("cannot marshal example")
+
+	// ErrMissingAuth is set when no authorization header or key is present but
+	// one is required by the API description.
+	ErrMissingAuth = errors.New("missing auth")
+
+	// ErrInvalidAuth is set when the authorization scheme doesn't correspond
+	// to the one required by the API description.
+	ErrInvalidAuth = errors.New("invalid auth")
+)
+
+// Mode defines a mode of operation for example generation.
+type Mode int
+
+const (
+	// ModeRequest is for the request body (writes to the server)
+	ModeRequest Mode = iota
+	// ModeResponse is for the response body (reads from the server)
+	ModeResponse
+)
+
+func getSchemaExample(schema *openapi3.Schema) (interface{}, bool) {
+	if schema.Example != nil {
+		return schema.Example, true
+	}
+
+	if schema.Default != nil {
+		return schema.Default, true
+	}
+
+	if schema.Enum != nil && len(schema.Enum) > 0 {
+		return schema.Enum[0], true
+	}
+
+	return nil, false
+}
+
+// stringFormatExample returns an example string based on the given format.
+// http://json-schema.org/latest/json-schema-validation.html#rfc.section.7.3
+func stringFormatExample(format string) string {
+	switch format {
+	case "date":
+		// https://tools.ietf.org/html/rfc3339
+		return "2018-07-23"
+	case "date-time":
+		// This is the date/time of API Sprout's first commit! :-)
+		return "2018-07-23T22:58:00-07:00"
+	case "time":
+		return "22:58:00-07:00"
+	case "email":
+		return "email@com"
+	case "hostname":
+		// https://tools.ietf.org/html/rfc2606#page-2
+		return "com"
+	case "ipv4":
+		// https://tools.ietf.org/html/rfc5737
+		return "198.51.100.0"
+	case "ipv6":
+		// https://tools.ietf.org/html/rfc3849
+		return "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+	case "uri":
+		return "https://tools.ietf.org/html/rfc3986"
+	case "uri-template":
+		// https://tools.ietf.org/html/rfc6570
+		return "http://com/dictionary/{term:1}/{term}"
+	case "json-pointer":
+		// https://tools.ietf.org/html/rfc6901
+		return "#/components/parameters/term"
+	case "regex":
+		// https://stackoverflow.com/q/3296050/164268
+		return "/^1?$|^(11+?)\\1+$/"
+	case "uuid":
+		// https://www.ietf.org/rfc/rfc4122.txt
+		return "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+	case "password":
+		return "********"
+	}
+
+	return ""
+}
+
+// excludeFromMode will exclude a schema if the mode is request and the schema
+// is read-only, or if the mode is response and the schema is write only.
+func excludeFromMode(mode Mode, schema *openapi3.Schema) bool {
+	if schema == nil {
+		return true
+	}
+
+	if mode == ModeRequest && schema.ReadOnly {
+		return true
+	} else if mode == ModeResponse && schema.WriteOnly {
+		return true
+	}
+
+	return false
+}
+
+// isRequired checks whether a key is actually required.
+func isRequired(schema *openapi3.Schema, key string) bool {
+	for _, req := range schema.Required {
+		if req == key {
+			return true
+		}
+	}
+
+	return false
+}
+
+type cachedSchema struct {
+	pending bool
+	out     interface{}
+}
+
+func openAPIExample(mode Mode, schema *openapi3.Schema, cache map[*openapi3.Schema]*cachedSchema) (out interface{}, err error) {
+	if ex, ok := getSchemaExample(schema); ok {
+		return ex, nil
+	}
+
+	cached, ok := cache[schema]
+	if !ok {
+		cached = &cachedSchema{
+			pending: true,
+		}
+		cache[schema] = cached
+	} else if cached.pending {
+		return nil, ErrRecursive
+	} else {
+		return cached.out, nil
+	}
+
+	defer func() {
+		cached.pending = false
+		cached.out = out
+	}()
+
+	// Handle combining keywords
+	if len(schema.OneOf) > 0 {
+		var ex interface{}
+		var err error
+
+		for _, candidate := range schema.OneOf {
+			ex, err = openAPIExample(mode, candidate.Value, cache)
+			if err == nil {
+				break
+			}
+		}
+
+		return ex, err
+	}
+	if len(schema.AnyOf) > 0 {
+		var ex interface{}
+		var err error
+
+		for _, candidate := range schema.AnyOf {
+			ex, err = openAPIExample(mode, candidate.Value, cache)
+			if err == nil {
+				break
+			}
+		}
+
+		return ex, err
+	}
+	if len(schema.AllOf) > 0 {
+		example := map[string]interface{}{}
+
+		for _, allOf := range schema.AllOf {
+			candidate, err := openAPIExample(mode, allOf.Value, cache)
+			if err != nil {
+				return nil, err
+			}
+
+			value, ok := candidate.(map[string]interface{})
+			if !ok {
+				return nil, ErrNoExample
+			}
+
+			for k, v := range value {
+				example[k] = v
+			}
+		}
+
+		return example, nil
+	}
+
+	switch {
+	case schema.Type == "boolean":
+		return true, nil
+	case schema.Type == "number", schema.Type == "integer":
+		value := 0.0
+
+		if schema.Min != nil && *schema.Min > value {
+			value = *schema.Min
+			if schema.ExclusiveMin {
+				if schema.Max != nil {
+					// Make the value half way.
+					value = (*schema.Min + *schema.Max) / 2.0
+				} else {
+					value++
+				}
+			}
+		}
+
+		if schema.Max != nil && *schema.Max < value {
+			value = *schema.Max
+			if schema.ExclusiveMax {
+				if schema.Min != nil {
+					// Make the value half way.
+					value = (*schema.Min + *schema.Max) / 2.0
+				} else {
+					value--
+				}
+			}
+		}
+
+		if schema.MultipleOf != nil && int(value)%int(*schema.MultipleOf) != 0 {
+			value += float64(int(*schema.MultipleOf) - (int(value) % int(*schema.MultipleOf)))
+		}
+
+		if schema.Type == "integer" {
+			return int(value), nil
+		}
+
+		return value, nil
+	case schema.Type == "string":
+		if ex := stringFormatExample(schema.Format); ex != "" {
+			return ex, nil
+		}
+
+		example := "string"
+
+		for schema.MinLength > uint64(len(example)) {
+			example += example
+		}
+
+		if schema.MaxLength != nil && *schema.MaxLength < uint64(len(example)) {
+			example = example[:*schema.MaxLength]
+		}
+
+		return example, nil
+	case schema.Type == "array", schema.Items != nil:
+		example := []interface{}{}
+
+		if schema.Items != nil && schema.Items.Value != nil {
+			ex, err := openAPIExample(mode, schema.Items.Value, cache)
+			if err != nil {
+				return nil, fmt.Errorf("can't get example for array item: %+v", err)
+			}
+
+			example = append(example, ex)
+
+			for uint64(len(example)) < schema.MinItems {
+				example = append(example, ex)
+			}
+		}
+
+		return example, nil
+	case schema.Type == "object", len(schema.Properties) > 0:
+		example := map[string]interface{}{}
+
+		for k, v := range schema.Properties {
+			if excludeFromMode(mode, v.Value) {
+				continue
+			}
+
+			ex, err := openAPIExample(mode, v.Value, cache)
+			if err == ErrRecursive {
+				if isRequired(schema, k) {
+					return nil, fmt.Errorf("can't get example for '%s': %+v", k, err)
+				}
+			} else if err != nil {
+				return nil, fmt.Errorf("can't get example for '%s': %+v", k, err)
+			} else {
+				example[k] = ex
+			}
+		}
+
+		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Value != nil {
+			addl := schema.AdditionalProperties.Value
+
+			if !excludeFromMode(mode, addl) {
+				ex, err := openAPIExample(mode, addl, cache)
+				if err == ErrRecursive {
+					// We just won't add this if it's recursive.
+				} else if err != nil {
+					return nil, fmt.Errorf("can't get example for additional properties: %+v", err)
+				} else {
+					example["additionalPropertyName"] = ex
+				}
+			}
+		}
+
+		return example, nil
+
+	case schema.Type == "":
+		return "", nil
+	}
+
+	return nil, ErrNoExample
+}
+
+// OpenAPIExample creates an example structure from an OpenAPI 3 schema
+// object, which is an extended subset of JSON Schema.
+// https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.1.md#schemaObject
+func OpenAPIExample(mode Mode, schema *openapi3.Schema) (interface{}, error) {
+	return openAPIExample(mode, schema, make(map[*openapi3.Schema]*cachedSchema))
+}
+
+// GetBodyExample ###
+func GetBodyExample(mode Mode, mt *openapi3.MediaType) (interface{}, error) {
+	if mt.Example != nil {
+		return mt.Example, nil
+	}
+
+	if len(mt.Examples) > 0 {
+		// Choose a random example to return.
+		keys := make([]string, 0, len(mt.Examples))
+		for k := range mt.Examples {
+			keys = append(keys, k)
+		}
+
+		if len(keys) > 0 {
+			selected := keys[0]
+			return mt.Examples[selected].Value.Value, nil
+		}
+	}
+
+	if mt.Schema != nil {
+		return OpenAPIExample(mode, mt.Schema.Value)
+	}
+	// TODO: generate data from JSON schema, if no examples available?
+
+	return nil, ErrNoExample
+}
+
+// GetParameterExample ###
+func GetParameterExample(mode Mode, p *openapi3.Parameter) (interface{}, error) {
+	if p.Example != nil {
+		return p.Example, nil
+	}
+
+	if len(p.Examples) > 0 {
+		// Choose a random example to return.
+		keys := make([]string, 0, len(p.Examples))
+		for k := range p.Examples {
+			keys = append(keys, k)
+		}
+
+		if len(keys) > 0 {
+			selected := keys[0]
+			return p.Examples[selected].Value.Value, nil
+		}
+	}
+
+	if p.Schema != nil {
+		return OpenAPIExample(mode, p.Schema.Value)
+	}
+	// TODO: generate data from JSON schema, if no examples available?
+
+	return nil, ErrNoExample
+}
+
+// GetResponseExample ###
+func GetResponseExample(mode Mode, p *openapi3.MediaType) (interface{}, error) {
+	if p.Schema != nil {
+		return OpenAPIExample(mode, p.Schema.Value)
+	}
+	// TODO: generate data from JSON schema, if no examples available?
+
+	return nil, ErrNoExample
+}
