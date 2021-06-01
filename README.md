@@ -9,11 +9,19 @@
 
 ## Usage
 ```go
-x, err := restAPI.New("openAPI", "path", true, true)
-if err != nil {
-    panic(err)
+package main
+
+import (
+    restAPI "github.com/iasthc/hsuan-fuzz/pkg/rest-api"
+)
+
+func main() {
+    x, err := restAPI.New("OpenAPI.yaml", ".", true, true)
+    if err != nil {
+        panic(err)
+    }
+    x.Fuzz(true)
 }
-x.Fuzz(true)
 ```
 
 ## ***WIP ...***
