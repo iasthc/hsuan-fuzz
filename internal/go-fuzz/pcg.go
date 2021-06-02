@@ -1,6 +1,7 @@
 // Copyright 2019 go-fuzz project authors. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 
+// Package gofuzz modified from https://github.com/dvyukov/go-fuzz
 // Package pcg implements a 32 bit PRNG with a 64 bit period: pcg xsh rr 64 32.
 // See https://www.pcg-random.org/ for more information.
 // This implementation is geared specifically towards go-fuzz's needs:

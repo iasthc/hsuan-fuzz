@@ -13,16 +13,19 @@ import (
 var excludeCodes = []string{"default", "401", "403", "500"}
 var operationsOrder = []string{http.MethodOptions, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodGet, http.MethodDelete, http.MethodTrace}
 
+// Criteria is used to verify the test coverage model.
 type Criteria struct {
 	Input  InputCriteria
 	Output OutputCriteria
 }
 
+// InputCriteria is used to verify the input of the test coverage model.
 type InputCriteria struct {
 	Types      map[string]int
 	Parameters map[string]int
 }
 
+// OutputCriteria is used to verify the output of the test coverage model.
 type OutputCriteria struct {
 	Types       map[string]int
 	CodeClasses map[int]int

@@ -1,4 +1,4 @@
-// modified from https://github.com/danielgtaylor/apisprout
+// Package example modified from https://github.com/danielgtaylor/apisprout
 package example
 
 import (

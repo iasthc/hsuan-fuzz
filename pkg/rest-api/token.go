@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Token is used to manually enter service authorization information.
 type Token struct {
 	URL         string      `yaml:"url"`
 	Method      string      `yaml:"method"`
@@ -23,6 +24,7 @@ type Token struct {
 	In          string      `yaml:"in"`
 }
 
+// GetToken obtains the authorization key based on the input information.
 func GetToken(t Token, print bool) string {
 
 	/* For https */

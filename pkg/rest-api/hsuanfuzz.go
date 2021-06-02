@@ -36,52 +36,60 @@ import (
 // TODO: 共二
 // TODO: string utf8 bytes ***
 // TODO: SEND JSON ONLY
-//
-var ErrToken = errors.New("unauthorized or forbidden")
 
+// PathInfo is used to display request information more easily.
 type PathInfo struct {
 	Paths map[string]*PathInfoMethod `yaml:"paths"`
 }
 
+// PathInfoMethod presents methods of the path.
 type PathInfoMethod struct {
 	Method map[string][]*PathInfoParameter `yaml:"methods"`
 }
 
+// PathInfoParameter presents parameters of the path.
 type PathInfoParameter struct {
 	Name  string      `yaml:"name,omitempty"`
 	In    string      `yaml:"in,omitempty"`
 	Value interface{} `yaml:"value"`
 }
 
+// Dependency is used to manually enter the dependency of the path.
 type Dependency struct {
 	Count int                        `yaml:"count"`
 	Paths map[string]*DependencyInfo `yaml:"paths"`
 	Posts map[string]*DependencyPost `yaml:"posts"`
 }
 
+// DependencyInfo presents the dependency of the path.
 type DependencyInfo struct {
 	Items []*DependencyItem `yaml:"items"`
 }
 
+// DependencyItem presents the ID and source required by the current path.
 type DependencyItem struct {
 	Key    string            `yaml:"key"`
 	Source *DependencySource `yaml:"source"`
 }
 
+// DependencySource presents the source path and the ID field of the response.
 type DependencySource struct {
 	Path string `yaml:"path"`
 	Key  string `yaml:"key"`
 }
 
+// DependencyPost is used to define test coverage level 7.
 type DependencyPost struct {
 	Flows []*DependencyPostItem `yaml:"flows"`
 }
 
+// DependencyPostItem presents the required request method and path.
 type DependencyPostItem struct {
 	Method string `yaml:"method"`
 	Path   string `yaml:"path"`
 }
 
+// HsuanFuzz is the main structure of fuzzer.
 type HsuanFuzz struct {
 	openAPI     *openapi3.Swagger
 	server      string
@@ -98,6 +106,7 @@ type HsuanFuzz struct {
 	strictMode  bool
 }
 
+// Coverage records the test coverage level of each path.
 type Coverage struct {
 	Levels []int
 }
@@ -110,6 +119,7 @@ func (c *Coverage) String() string {
 	return r
 }
 
+// Fuzz is equivalent to the execution of Fuzzer, continuously fuzzing.
 func (x *HsuanFuzz) Fuzz(guided bool) error {
 
 	log.Println("==================================================")
@@ -253,7 +263,7 @@ func (x *HsuanFuzz) Fuzz(guided bool) error {
 
 }
 
-// New ###
+// New will create a new HsuanFuzz, which is also initialized.
 func New(openapiPath string, dirPath string, remove bool, strictMode bool) (*HsuanFuzz, error) {
 
 	openAPI, err := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(openapiPath)
@@ -473,12 +483,4 @@ func (x *HsuanFuzz) initializeInfoYAML(p string) {
 		panic(err)
 	}
 
-}
-
-func (x *HsuanFuzz) GetOpenAPI() *openapi3.Swagger {
-	return x.openAPI
-}
-
-func (x *HsuanFuzz) GetStrictMode() bool {
-	return x.strictMode
 }

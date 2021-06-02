@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+// ResponseInfo is used to carry request and response information.
 type ResponseInfo struct {
 	request *base.Node
 	Code    int
@@ -20,6 +21,7 @@ type ResponseInfo struct {
 	Body    string
 }
 
+// SendRequest uses our grammar to send the request.
 func (x *HsuanFuzz) SendRequest(node *base.Node, decode bool) *ResponseInfo {
 
 	// time.Sleep(100 * time.Millisecond)

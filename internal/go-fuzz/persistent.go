@@ -1,6 +1,7 @@
 // Copyright 2015 go-fuzz project authors. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 
+// Package gofuzz modified from https://github.com/dvyukov/go-fuzz
 package gofuzz
 
 import (
@@ -20,18 +21,22 @@ type PersistentSet struct {
 	M   map[Sig]Artifact
 }
 
+// Artifact is the basic element of PersistentSet.
 type Artifact struct {
 	Data []byte
 	meta uint64 // arbitrary user payload
 	user bool   // file created by user
 }
 
+// Sig for fixed-length byte.
 type Sig [sha1.Size]byte
 
+// Hash by SHA-1 checksum.
 func Hash(data []byte) Sig {
 	return Sig(sha1.Sum(data))
 }
 
+// NewPersistentSet for new PersistentSet.
 func NewPersistentSet(dir string) *PersistentSet {
 	ps := &PersistentSet{
 		dir: dir,
@@ -93,6 +98,7 @@ func isHexString(s string) bool {
 	return true
 }
 
+// Add Artifact to PersistentSet.
 func (ps *PersistentSet) Add(a Artifact) bool {
 	sig := Hash(a.Data)
 	if _, ok := ps.M[sig]; ok {
@@ -106,7 +112,7 @@ func (ps *PersistentSet) Add(a Artifact) bool {
 	return true
 }
 
-// addDescription creates a complementary to data file on disk.
+// AddDescription creates a complementary to data file on disk.
 func (ps *PersistentSet) AddDescription(data []byte, desc []byte, typ string) {
 	sig := Hash(data)
 	fname := filepath.Join(ps.dir, fmt.Sprintf("%v.%v", hex.EncodeToString(sig[:]), typ))

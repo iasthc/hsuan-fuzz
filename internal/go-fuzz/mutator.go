@@ -1,6 +1,7 @@
 // Copyright 2015 go-fuzz project authors. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 
+// Package gofuzz modified from https://github.com/dvyukov/go-fuzz
 package gofuzz
 
 import (
@@ -8,10 +9,12 @@ import (
 	"strconv"
 )
 
+// Mutator is a primitive and is used to mutate bytes.
 type Mutator struct {
 	r *Rand
 }
 
+// NewMutator is used to create a Mutator.
 func NewMutator() *Mutator {
 	return &Mutator{r: New()}
 }
@@ -44,6 +47,8 @@ func (m *Mutator) randByteOrder() binary.ByteOrder {
 // }
 
 // func (m *Mutator) mutate(data []byte, ro *ROData) []byte {
+
+// Mutate use different methods to mutate bytes.
 func (m *Mutator) Mutate(data []byte) []byte {
 	// corpus := ro.corpus
 	res := make([]byte, len(data))
