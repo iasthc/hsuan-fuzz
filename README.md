@@ -25,7 +25,16 @@ func main() {
 }
 ```
 
-## ***WIP ...***
+## Paper
+- [(TBD)[English] REST API Fuzzing by Coverage Level Guided Blackbox Testing]()
+- [[Traditional Chinese] 基於黑箱覆蓋等級指引之 REST API 模糊測試](https://hdl.handle.net/11296/yhymz5)
+
+## Bugs reported
+- [Spree, PR \#10626](https://github.com/spree/spree/pull/10626)
+- [Spree, Issue \#10647](https://github.com/spree/spree/issues/10647)
+- [Spree, Issue \#10971](https://github.com/spree/spree/issues/10971)
+- [Magento2, Issue \#31551](https://github.com/magento/magento2/issues/31551)
+- [Magento2, Issue \#32784](https://github.com/magento/magento2/issues/32784)
 
 ## Credits
 - Mutation strategy
