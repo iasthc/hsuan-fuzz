@@ -26,7 +26,7 @@ func main() {
 ```
 
 ## Paper
-- [[English] REST API Fuzzing by Coverage Level Guided Blackbox Testing](https://arxiv.org/abs/2112.15485)
+- [[English] REST API Fuzzing by Coverage Level Guided Blackbox Testing](https://ieeexplore.ieee.org/document/9724904)
 - [[中文] 基於黑箱覆蓋等級指引之 REST API 模糊測試](https://hdl.handle.net/11296/yhymz5)
 
 ## Bugs reported
